@@ -24,16 +24,25 @@ void SoftmaxLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 }
 
 template <typename Dtype>
+// 计算softmax 
 void SoftmaxLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
     const vector<Blob<Dtype>*>& top) {
+
   const Dtype* bottom_data = bottom[0]->cpu_data();
+
   Dtype* top_data = top[0]->mutable_cpu_data();
+  //scale_ 应该是255，对数据进行归一化
   Dtype* scale_data = scale_.mutable_cpu_data();
+  //softmax_axis_ 应该是通道所在维度的位置，将通道数取出来
   int channels = bottom[0]->shape(softmax_axis_);
+  //count 是几个维度的乘积 然后除以 样本数，就是一列的特征数
   int dim = bottom[0]->count() / outer_num_;
+  //将bottom_data、top_data 拷贝到制定的区域
   caffe_copy(bottom[0]->count(), bottom_data, top_data);
+  
   // We need to subtract the max to avoid numerical issues, compute the exp,
   // and then normalize.
+  //计算过程
   for (int i = 0; i < outer_num_; ++i) {
     // initialize scale_data to the first plane
     caffe_copy(inner_num_, bottom_data + i * dim, scale_data);

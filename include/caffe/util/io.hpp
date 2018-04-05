@@ -90,38 +90,38 @@ inline void WriteProtoToBinaryFile(
   WriteProtoToBinaryFile(proto, filename.c_str());
 }
 
-bool ReadFileToDatum(const string& filename, const int label, Datum* datum);
+bool ReadFileToDatum(const string& filename, const vector<float>& label, Datum* datum);
 
 inline bool ReadFileToDatum(const string& filename, Datum* datum) {
-  return ReadFileToDatum(filename, -1, datum);
+	return ReadFileToDatum(filename, vector<float>(), datum);
 }
 
-bool ReadImageToDatum(const string& filename, const int label,
+bool ReadImageToDatum(const string& filename, const vector<float>& label,
     const int height, const int width, const bool is_color,
     const std::string & encoding, Datum* datum);
 
-inline bool ReadImageToDatum(const string& filename, const int label,
+inline bool ReadImageToDatum(const string& filename, const vector<float>& label,
     const int height, const int width, const bool is_color, Datum* datum) {
   return ReadImageToDatum(filename, label, height, width, is_color,
                           "", datum);
 }
 
-inline bool ReadImageToDatum(const string& filename, const int label,
+inline bool ReadImageToDatum(const string& filename, const vector<float>& label,
     const int height, const int width, Datum* datum) {
   return ReadImageToDatum(filename, label, height, width, true, datum);
 }
 
-inline bool ReadImageToDatum(const string& filename, const int label,
+inline bool ReadImageToDatum(const string& filename, const vector<float>& label,
     const bool is_color, Datum* datum) {
   return ReadImageToDatum(filename, label, 0, 0, is_color, datum);
 }
 
-inline bool ReadImageToDatum(const string& filename, const int label,
+inline bool ReadImageToDatum(const string& filename, const vector<float>& label,
     Datum* datum) {
   return ReadImageToDatum(filename, label, 0, 0, true, datum);
 }
 
-inline bool ReadImageToDatum(const string& filename, const int label,
+inline bool ReadImageToDatum(const string& filename, const vector<float>& label,
     const std::string & encoding, Datum* datum) {
   return ReadImageToDatum(filename, label, 0, 0, true, encoding, datum);
 }

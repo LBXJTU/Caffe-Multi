@@ -11,6 +11,7 @@
 namespace caffe {
 
 template <typename Dtype>
+  //为每个输入输出该名字
 void LSTMLayer<Dtype>::RecurrentInputBlobNames(vector<string>* names) const {
   names->resize(2);
   (*names)[0] = "h_0";
@@ -29,8 +30,10 @@ void LSTMLayer<Dtype>::RecurrentInputShapes(vector<BlobShape>* shapes) const {
   const int num_output = this->layer_param_.recurrent_param().num_output();
   const int num_blobs = 2;
   shapes->resize(num_blobs);
+
   for (int i = 0; i < num_blobs; ++i) {
     (*shapes)[i].Clear();
+    //一个时间步的定义 
     (*shapes)[i].add_dim(1);  // a single timestep
     (*shapes)[i].add_dim(this->N_);
     (*shapes)[i].add_dim(num_output);
@@ -56,8 +59,12 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
   // use to save redundant code.
   LayerParameter hidden_param;
   hidden_param.set_type("InnerProduct");
+
   hidden_param.mutable_inner_product_param()->set_num_output(num_output * 4);
   hidden_param.mutable_inner_product_param()->set_bias_term(false);
+  //这是因为默认的全连接设置的轴为1，直接从第二个轴以后进行压缩，
+  //这里设置成2，因为在lstm中原来的维度是(空,256,4096) ，因为lstm 上一层是全连接层的话，传进来之后转换成(16,16,4096) ，
+  //相当于lstm为全连接层第一维度空出来
   hidden_param.mutable_inner_product_param()->set_axis(2);
   hidden_param.mutable_inner_product_param()->
       mutable_weight_filler()->CopyFrom(weight_filler);
@@ -83,6 +90,7 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
   LayerParameter split_param;
   split_param.set_type("Split");
 
+  
   vector<BlobShape> input_shapes;
   RecurrentInputShapes(&input_shapes);
   CHECK_EQ(2, input_shapes.size());
@@ -91,12 +99,14 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
   input_layer_param->set_type("Input");
   InputParameter* input_param = input_layer_param->mutable_input_param();
 
+//这个层加top
   input_layer_param->add_top("c_0");
   input_param->add_shape()->CopyFrom(input_shapes[0]);
 
   input_layer_param->add_top("h_0");
   input_param->add_shape()->CopyFrom(input_shapes[1]);
 
+//切剪辑标记
   LayerParameter* cont_slice_param = net_param->add_layer();
   cont_slice_param->CopyFrom(slice_param);
   cont_slice_param->set_name("cont_slice");
@@ -105,6 +115,7 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
 
   // Add layer to transform all timesteps of x to the hidden state dimension.
   //     W_xc_x = W_xc * x + b_c
+  //将四个门的权值都放在了这里
   {
     LayerParameter* x_transform_param = net_param->add_layer();
     x_transform_param->CopyFrom(biased_hidden_param);
@@ -148,11 +159,14 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
   x_slice_param->set_name("W_xc_x_slice");
 
   LayerParameter output_concat_layer;
+  //将多个输出串联接起来输出，也就是每一帧的输出串联起来，同时算的时候，就是16个视频的同一帧都计算出来连接起来
   output_concat_layer.set_name("h_concat");
   output_concat_layer.set_type("Concat");
   output_concat_layer.add_top("h");
   output_concat_layer.mutable_concat_param()->set_axis(0);
 
+//T_就是帧数 也就是步数
+  //其实就是在声明net_param的结构，然后把里面的指针拿出来
   for (int t = 1; t <= this->T_; ++t) {
     string tm1s = format_int(t - 1);
     string ts = format_int(t);
@@ -192,7 +206,9 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
     //     gate_input_t := W_hc * h_conted_{t-1} + W_xc * x_t + b_c
     //                   = W_hc_h_{t-1} + W_xc_x_t + b_c
     {
+      //这块的作用是就是将多个矩阵拼接起来，并没有实际的取加
       LayerParameter* input_sum_layer = net_param->add_layer();
+      //将sum_param操作放到本层中
       input_sum_layer->CopyFrom(sum_param);
       input_sum_layer->set_name("gate_input_" + ts);
       input_sum_layer->add_bottom("W_hc_h_" + tm1s);
@@ -218,6 +234,7 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
     //         h_t := o_t .* \tanh[c_t]
     {
       LayerParameter* lstm_unit_param = net_param->add_layer();
+      
       lstm_unit_param->set_type("LSTMUnit");
       lstm_unit_param->add_bottom("c_" + tm1s);
       lstm_unit_param->add_bottom("gate_input_" + ts);
@@ -235,6 +252,7 @@ void LSTMLayer<Dtype>::FillUnrolledNet(NetParameter* net_param) const {
     c_T_copy_param->add_bottom("c_" + format_int(this->T_));
     c_T_copy_param->add_top("c_T");
   }
+  //增加一个输出的层
   net_param->add_layer()->CopyFrom(output_concat_layer);
 }
 

@@ -25,7 +25,7 @@ using caffe::string;
 using caffe::Timer;
 using caffe::vector;
 using std::ostringstream;
-
+//定义字符串
 DEFINE_string(gpu, "",
     "Optional; run in GPU mode on given device IDs separated by ','."
     "Use '-gpu all' to run on all available GPUs. The effective training "
@@ -162,17 +162,17 @@ caffe::SolverAction::Enum GetRequestedAction(
   LOG(FATAL) << "Invalid signal effect \""<< flag_value << "\" was specified";
 }
 
-// Train / Finetune a model.
+// Train / Finetune a model. 训练一个模型
 int train() {
   CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
   CHECK(!FLAGS_snapshot.size() || !FLAGS_weights.size())
       << "Give a snapshot to resume training or weights to finetune "
       "but not both.";
   vector<string> stages = get_stages_from_flags();
-
+  //将配置文件读取进来
   caffe::SolverParameter solver_param;
   caffe::ReadSolverParamsFromTextFileOrDie(FLAGS_solver, &solver_param);
-
+  
   solver_param.mutable_train_state()->set_level(FLAGS_level);
   for (int i = 0; i < stages.size(); i++) {
     solver_param.mutable_train_state()->add_stage(stages[i]);
@@ -226,6 +226,7 @@ int train() {
     solver_param.add_weights(FLAGS_weights);
   }
 
+  //创建求解器的类工厂
   shared_ptr<caffe::Solver<float> >
       solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
 
@@ -239,12 +240,14 @@ int train() {
   LOG(INFO) << "Starting Optimization";
   if (gpus.size() > 1) {
 #ifdef USE_NCCL
+    //多个卡上并行，GPU大于等1的情况
     caffe::NCCL<float> nccl(solver);
     nccl.Run(gpus, FLAGS_snapshot.size() > 0 ? FLAGS_snapshot.c_str() : NULL);
 #else
     LOG(FATAL) << "Multi-GPU execution not available - rebuild with USE_NCCL";
 #endif
   } else {
+    //入口 等于1个卡的时候
     solver->Solve();
   }
   LOG(INFO) << "Optimization Done.";
@@ -283,8 +286,10 @@ int test() {
   vector<int> test_score_output_id;
   vector<float> test_score;
   float loss = 0;
+
   for (int i = 0; i < FLAGS_iterations; ++i) {
     float iter_loss;
+    //开始进行测试集forward
     const vector<Blob<float>*>& result =
         caffe_net.Forward(&iter_loss);
     loss += iter_loss;
@@ -416,7 +421,7 @@ int time() {
   return 0;
 }
 RegisterBrewFunction(time);
-
+//argc代表的是 有多少参数传进来 
 int main(int argc, char** argv) {
   // Print output to stderr (while still logging).
   FLAGS_alsologtostderr = 1;
@@ -430,12 +435,13 @@ int main(int argc, char** argv) {
       "  test            score a model\n"
       "  device_query    show GPU diagnostic information\n"
       "  time            benchmark model execution time");
-  // Run tool or show usage.
+  // Run tool or show usage. 解析参数
   caffe::GlobalInit(&argc, &argv);
   if (argc == 2) {
 #ifdef WITH_PYTHON_LAYER
     try {
 #endif
+      //这里开始调用训练网络
       return GetBrewFunction(caffe::string(argv[1]))();
 #ifdef WITH_PYTHON_LAYER
     } catch (bp::error_already_set) {

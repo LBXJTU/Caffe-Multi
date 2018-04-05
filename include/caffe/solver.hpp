@@ -44,12 +44,14 @@ class Solver {
   explicit Solver(const SolverParameter& param);
   explicit Solver(const string& param_file);
   void Init(const SolverParameter& param);
+  //调用两次 训练网络和测试网络
   void InitTrainNet();
   void InitTestNets();
 
   // Client of the Solver optionally may call this in order to set the function
   // that the solver uses to see what action it should take (e.g. snapshot or
   // exit training early).
+  
   void SetActionFunction(ActionCallback func);
   SolverAction::Enum GetRequestedAction();
   // The main entry of the solver function. In default, iter will be zero. Pass

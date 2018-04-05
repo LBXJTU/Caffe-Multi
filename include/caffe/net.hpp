@@ -23,12 +23,18 @@ namespace caffe {
 template <typename Dtype>
 class Net {
  public:
+  //显示构造函数，内部调用Init函数，并且param代表的是一个完整网络结构图，里面包括了各种各样的layer层
   explicit Net(const NetParameter& param);
+
   explicit Net(const string& param_file, Phase phase,
       const int level = 0, const vector<string>* stages = NULL);
+  //虚析构函数
   virtual ~Net() {}
 
   /// @brief Initialize a network with a NetParameter.
+  //// Net初始化:创建blobs和layers以搭建整个网络DAG图，以及调用layer的SetUp函数，  
+// 初始化时也会做另一些记录，例如确认整个网络结构的正确与否等，  
+// 另外，初始化期间，Net会打印其初始化日志到INFO信息中
   void Init(const NetParameter& param);
 
   /**
@@ -169,6 +175,7 @@ class Net {
   }
   inline const vector<bool>& layer_need_backward() const {
     return layer_need_backward_;
+
   }
   /// @brief returns the parameters
   inline const vector<shared_ptr<Blob<Dtype> > >& params() const {
@@ -283,9 +290,13 @@ class Net {
   map<string, int> layer_names_index_;
   vector<bool> layer_need_backward_;
   /// @brief the blobs storing intermediate results between the layer.
+  //blobs_ 保存的是两个层之间的信息，因为上一层的top就是下一层的bottom，所以使用的是同一个blobs_结构，这个blobs_是整个网络结构中所有blob都保存了起来
+  //这个blobs_在appendtop中给出了定义，push_back（）
   vector<shared_ptr<Blob<Dtype> > > blobs_;
-  vector<string> blob_names_;
+  
+  vector<string> blob_names_; //存放所有blob的名字
   map<string, int> blob_names_index_;
+  
   vector<bool> blob_need_backward_;
   /// bottom_vecs stores the vectors containing the input for each layer.
   /// They don't actually host the blobs (blobs_ does), so we simply store
@@ -309,7 +320,7 @@ class Net {
   vector<int> net_output_blob_indices_;
   vector<Blob<Dtype>*> net_input_blobs_;
   vector<Blob<Dtype>*> net_output_blobs_;
-  /// The parameters in the network.
+  /// The parameters in the network. 整个网络的参数块向量
   vector<shared_ptr<Blob<Dtype> > > params_;
   vector<Blob<Dtype>*> learnable_params_;
   /**

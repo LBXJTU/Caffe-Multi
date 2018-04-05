@@ -51,6 +51,7 @@ class Blob {
   void Reshape(const vector<int>& shape);
   void Reshape(const BlobShape& shape);
   void ReshapeLike(const Blob& other);
+  //看到维度
   inline string shape_string() const {
     ostringstream stream;
     for (int i = 0; i < shape_.size(); ++i) {
@@ -61,7 +62,8 @@ class Blob {
   }
   inline const vector<int>& shape() const { return shape_; }
   /**
-   * @brief Returns the dimension of the index-th axis (or the negative index-th
+   * @brief Returns the dimension of the index-th axis
+    (or the negative index-th
    *        axis from the end, if index is negative).
    *
    * @param index the axis index, which may be negative as it will be
@@ -149,7 +151,7 @@ class Blob {
     }
     return shape(index);
   }
-
+  //对一个数据blob索引值
   inline int offset(const int n, const int c = 0, const int h = 0,
       const int w = 0) const {
     CHECK_GE(n, 0);

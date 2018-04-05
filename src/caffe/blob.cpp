@@ -1,3 +1,5 @@
+
+
 #include <climits>
 #include <vector>
 
@@ -16,6 +18,7 @@ void Blob<Dtype>::Reshape(const int num, const int channels, const int height,
   shape[1] = channels;
   shape[2] = height;
   shape[3] = width;
+  
   Reshape(shape);
 }
 
@@ -23,6 +26,7 @@ template <typename Dtype>
 void Blob<Dtype>::Reshape(const vector<int>& shape) {
   CHECK_LE(shape.size(), kMaxBlobAxes);
   count_ = 1;
+  
   shape_.resize(shape.size());
   if (!shape_data_ || shape_data_->size() < shape.size() * sizeof(int)) {
     shape_data_.reset(new SyncedMemory(shape.size() * sizeof(int)));

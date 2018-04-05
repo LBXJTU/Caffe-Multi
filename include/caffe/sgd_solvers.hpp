@@ -15,22 +15,32 @@ namespace caffe {
 template <typename Dtype>
 class SGDSolver : public Solver<Dtype> {
  public:
+  //显示构造函数，调用PreSolve函数
   explicit SGDSolver(const SolverParameter& param)
       : Solver<Dtype>(param) { PreSolve(); }
   explicit SGDSolver(const string& param_file)
       : Solver<Dtype>(param_file) { PreSolve(); }
   virtual inline const char* type() const { return "SGD"; }
-
+  //获取history数据
   const vector<shared_ptr<Blob<Dtype> > >& history() { return history_; }
 
  protected:
+  //成员变量history_, update_, temp_初始化，
   void PreSolve();
+  //获取学习率，根据当前的学习策略
   Dtype GetLearningRate();
+  // 内部会调用ClipGradients、Normalize、Regularize、ComputeUpdateValue，更新net权值和偏置  
   virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);
   virtual void ComputeUpdateValue(int param_id, Dtype rate);
   virtual void ClipGradients();
+  
+
+
+
+
+
   virtual void SnapshotSolverState(const string& model_filename);
   virtual void SnapshotSolverStateToBinaryProto(const string& model_filename);
   virtual void SnapshotSolverStateToHDF5(const string& model_filename);

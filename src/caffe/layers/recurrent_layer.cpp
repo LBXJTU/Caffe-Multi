@@ -13,20 +13,27 @@ namespace caffe {
 template <typename Dtype>
 void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  //输入最少两个维度，streams是样本数，timesteps是帧数，所以时间维度是在第一个
   CHECK_GE(bottom[0]->num_axes(), 2)
       << "bottom[0] must have at least 2 axes -- (#timesteps, #streams, ...)";
+  
   T_ = bottom[0]->shape(0);
+  
   N_ = bottom[0]->shape(1);
+
   LOG(INFO) << "Initializing recurrent layer: assuming input batch contains "
             << T_ << " timesteps of " << N_ << " independent streams.";
-
+  //标记位 clip-maker 只是传进去了，没有进行计算，而是放到最后才进行计算，因为他是一个标记位
+  //16个count,每一个是一列，每个视频的每一帧是一列，一共16个视频
   CHECK_EQ(bottom[1]->num_axes(), 2)
       << "bottom[1] must have exactly 2 axes -- (#timesteps, #streams)";
+  //维度是一样的
   CHECK_EQ(T_, bottom[1]->shape(0));
   CHECK_EQ(N_, bottom[1]->shape(1));
 
   // If expose_hidden is set, we take as input and produce as output
   // the hidden state blobs at the first and last timesteps.
+  //中间想看hidden的输出，就输出这个
   expose_hidden_ = this->layer_param_.recurrent_param().expose_hidden();
 
   // Get (recurrent) input/output names.
@@ -39,10 +46,11 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   const int num_recur_blobs = recur_input_names.size();
   CHECK_EQ(num_recur_blobs, recur_output_names.size());
 
-  // If provided, bottom[2] is a static input to the recurrent net.
+  // If provided, bottom[2] is a static input to the recurrent net. 第三个静态的输入
   const int num_hidden_exposed = expose_hidden_ * num_recur_blobs;
   static_input_ = (bottom.size() > 2 + num_hidden_exposed);
   if (static_input_) {
+    //这个静态值就是为了查看每一个隐藏层的输出，放到下一层第三个输入的bottom内
     CHECK_GE(bottom[2]->num_axes(), 1);
     CHECK_EQ(N_, bottom[2]->shape(0));
   }
@@ -50,15 +58,21 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // Create a NetParameter; setup the inputs that aren't unique to particular
   // recurrent architectures.
   NetParameter net_param;
-
+//添加新的网络层
   LayerParameter* input_layer_param = net_param.add_layer();
   input_layer_param->set_type("Input");
   InputParameter* input_param = input_layer_param->mutable_input_param();
+
+  
   input_layer_param->add_top("x");
+  
   BlobShape input_shape;
+  
   for (int i = 0; i < bottom[0]->num_axes(); ++i) {
+    //添加一些维度
     input_shape.add_dim(bottom[0]->shape(i));
   }
+  
   input_param->add_shape()->CopyFrom(input_shape);
 
   input_shape.Clear();
@@ -79,11 +93,13 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 
   // Call the child's FillUnrolledNet implementation to specify the unrolled
   // recurrent architecture.
+  //下面调用子类的对象赋值给他来调用
   this->FillUnrolledNet(&net_param);
 
   // Prepend this layer's name to the names of each layer in the unrolled net.
   const string& layer_name = this->layer_param_.name();
   if (layer_name.size()) {
+    //每一层赋值名字
     for (int i = 0; i < net_param.layer_size(); ++i) {
       LayerParameter* layer = net_param.mutable_layer(i);
       layer->set_name(layer_name + "_" + layer->name());
@@ -101,10 +117,11 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
     layer->set_type("Reduction");
     layer->add_bottom(output_names[i]);
     layer->add_top(pseudo_losses[i]);
+    //有多个Loss,每个loss的权重，自动加起来
     layer->add_loss_weight(1);
   }
 
-  // Create the unrolled net.
+  // Create the unrolled net. 展开初始化， 根据类的网络的结构 创建一个新的对象网络
   unrolled_net_.reset(new Net<Dtype>(net_param));
   unrolled_net_->set_debug_info(
       this->layer_param_.recurrent_param().debug_info());
@@ -128,6 +145,7 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   // Setup pointers to outputs.
+  //top.size()内部本身包括了隐藏层的输出，这里需要减掉
   CHECK_EQ(top.size() - num_hidden_exposed, output_names.size())
       << "OutputBlobNames must provide an output blob name for each top.";
   output_blobs_.resize(output_names.size());
@@ -137,13 +155,14 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
 
   // We should have 2 inputs (x and cont), plus a number of recurrent inputs,
-  // plus maybe a static input.
+  // plus maybe a static input. 可能多出两个c0,h0（中间的一些值）就是num_recur_blobs
   CHECK_EQ(2 + num_recur_blobs + static_input_,
            unrolled_net_->input_blobs().size());
 
   // This layer's parameters are any parameters in the layers of the unrolled
   // net. We only want one copy of each parameter, so check that the parameter
   // is "owned" by the layer, rather than shared with another.
+  //每个时间点的w矩阵都是一样的，只有在逆传播的时候才会发生改变
   this->blobs_.clear();
   for (int i = 0; i < unrolled_net_->params().size(); ++i) {
     if (unrolled_net_->param_owners()[i] == -1) {
@@ -164,7 +183,7 @@ void RecurrentLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   this->param_propagate_down_.resize(this->blobs_.size(), true);
 
   // Set the diffs of recurrent outputs to 0 -- we can't backpropagate across
-  // batches.
+  // batches. 不能不同的batch之间不能逆传播 
   for (int i = 0; i < recur_output_blobs_.size(); ++i) {
     caffe_set(recur_output_blobs_[i]->count(), Dtype(0),
               recur_output_blobs_[i]->mutable_cpu_diff());

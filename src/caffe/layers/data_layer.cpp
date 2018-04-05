@@ -48,7 +48,10 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       << top[0]->width();
   // label
   if (this->output_labels_) {
-    vector<int> label_shape(1, batch_size);
+    //vector的语法，label_shape是包含了2个batch_size意思就是，label_shape=<batch_size,batch_size>
+    vector<int> label_shape(2, batch_size);
+  //刚才的repeated格式，所以有size属性
+    label_shape[1]=datum.labels_size();
     top[1]->Reshape(label_shape);
     for (int i = 0; i < this->prefetch_.size(); ++i) {
       this->prefetch_[i]->label_.Reshape(label_shape);
@@ -90,6 +93,9 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   const int batch_size = this->layer_param_.data_param().batch_size();
 
   Datum datum;
+   Dtype* top_data = batch->data_.mutable_cpu_data();
+   //上面已经将label的shape转换成了<label_size,batchsize>的二维了
+   Dtype* top_label = batch->label_.mutable_cpu_data();
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     timer.Start();
     while (Skip()) {
@@ -112,13 +118,18 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     // Apply data transformations (mirror, scale, crop...)
     timer.Start();
     int offset = batch->data_.offset(item_id);
-    Dtype* top_data = batch->data_.mutable_cpu_data();
+   
     this->transformed_data_.set_cpu_data(top_data + offset);
     this->data_transformer_->Transform(datum, &(this->transformed_data_));
     // Copy label.
     if (this->output_labels_) {
-      Dtype* top_label = batch->label_.mutable_cpu_data();
-      top_label[item_id] = datum.label();
+        for (int labi = 0; labi < datum.labels_size(); ++labi){
+       //对label进行了 获取和 赋值 所以需要对label的函数进行修改
+             //因为在配置文件中，label是datum数据结构中的一个repeated的数据类型，其实这里是一条一条数据读取进来，这条数据包含了数据+n个标签值！，然后将这里面的标签取出来保存好，再去下一条数据
+      top_label[item_id*datum.labels_size() + labi] = datum.labels(labi);
+      
+    }
+      
     }
     trans_time += timer.MicroSeconds();
     Next();

@@ -8,7 +8,7 @@ namespace caffe {
 //#SigmoidCrossEntropyLossLayer的输入bottom[0]，bottom[1]，
 //#其中bottom[0]是输入的预测的结果，bottom[1]是标签值
 template <typename Dtype>
-void SigmoidCrossEntropyLossLayer<Dtype>::LayerSetUp(
+void SigmoidCrossImproveEntropyLossLayer<Dtype>::LayerSetUp(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
 
   LossLayer<Dtype>::LayerSetUp(bottom, top);
@@ -31,10 +31,12 @@ void SigmoidCrossEntropyLossLayer<Dtype>::LayerSetUp(
     // Divide by the batch size.
     BATCH_SIZE = 2;
     // Do not normalize the loss.
-    NONE = 3*/;
+    NONE = 3*/
 
   has_ignore_label_ =
     this->layer_param_.loss_param().has_ignore_label();
+  sample_rate_value_=
+    this->layer_param_.loss_param().sample_rate();
   if (has_ignore_label_) {
     ignore_label_ = this->layer_param_.loss_param().ignore_label();
   }
@@ -51,7 +53,7 @@ void SigmoidCrossEntropyLossLayer<Dtype>::LayerSetUp(
 }
 
 template <typename Dtype>
-void SigmoidCrossEntropyLossLayer<Dtype>::Reshape(
+void SigmoidCrossImproveEntropyLossLayer<Dtype>::Reshape(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   LossLayer<Dtype>::Reshape(bottom, top);
   outer_num_ = bottom[0]->shape(0);  // batch size
@@ -65,7 +67,7 @@ void SigmoidCrossEntropyLossLayer<Dtype>::Reshape(
 // instead of duplicated here and in SoftMaxWithLossLayer
 //表示了各种除法，根据model的类型，来选择相应的除法
 template <typename Dtype>
-Dtype SigmoidCrossEntropyLossLayer<Dtype>::get_normalizer(
+Dtype SigmoidCrossImproveEntropyLossLayer<Dtype>::get_normalizer(
     LossParameter_NormalizationMode normalization_mode, int valid_count) {
   Dtype normalizer;
   switch (normalization_mode) {
@@ -97,8 +99,7 @@ Dtype SigmoidCrossEntropyLossLayer<Dtype>::get_normalizer(
 
 template <typename Dtype>
 //sigmoid 的输入 bottom 是二维的矩阵，行数是否为1？ 传进来是一个z值了，是不是只有一行
-//SigmoidCrossEntropyLossLayer 前一层是一个先行曾
-void SigmoidCrossEntropyLossLayer<Dtype>::Forward_cpu(
+void SigmoidCrossImproveEntropyLossLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
   // The forward pass computes the sigmoid outputs.
   //保存了Z值 sigmoid_bottom_vec_[0] 是一个blob, sigmoid_bottom_vec_ 是包含blob的vector，在GPU CPU版中，都可以是使用
@@ -140,7 +141,7 @@ void SigmoidCrossEntropyLossLayer<Dtype>::Forward_cpu(
 }
 
 template <typename Dtype>
-void SigmoidCrossEntropyLossLayer<Dtype>::Backward_cpu(
+void SigmoidCrossImproveEntropyLossLayer<Dtype>::Backward_cpu(
     const vector<Blob<Dtype>*>& top, const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
   //propagate_down[1] 表示本层有两个输入，标签输入那层不需要 求导数
@@ -155,11 +156,46 @@ void SigmoidCrossEntropyLossLayer<Dtype>::Backward_cpu(
 
     const Dtype* sigmoid_output_data = sigmoid_output_->cpu_data();
     //标签值
-    const Dtype* target = bottom[1]->cpu_data();
-    //mutable_cpu_diff 取出他的内存地址，然后算出梯度值保存进去 mutable表示可写
-    Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
+    //const Dtype* target = bottom[1]->cpu_data();
+    const Dtype* target[] = bottom[1]->cpu_data();
+    //y     [0  ,   1    ,  0   ,  0    ,  1    ,  0   ]
+    //yhat  [0.3,   0.7  ,  0.2 ,  0.2  ,  0.8  ,  0.3 ]
+    //计算出1标签的数量的个数
+    //仅仅将1造成的误差扩大三倍
+    
 
+
+    Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
+    /*caffe_mul(count,target,sigmoid_output_data,bottom_diff);
+    //标签1的减去相对应概率
     caffe_sub(count, sigmoid_output_data, target, bottom_diff);
+    //扩大三倍
+    caffe_scal(count,sample_rate_value_,bottom_diff);
+    Dtype* bottom_diff1=(Dtype*)malloc(sizeof(bottom_diff));
+    caffe_sub(count,target,Dtype(1),bottom_diff1);
+    caffe_mul(count,bottom_diff1,Dtype(-1),bottom_diff1);
+    caffe_mul(count,bottom_diff1,target,bottom_diff1);
+    caffe_add(count,bottom_diff1,bottom_diff,bottom_diff);*/
+    //将标签值修改成一个数组
+
+    //对每个标签进行计算
+    
+          for(int i=0 ; i<count ; i++) {
+ 
+        bottom_diff[i] = target== 0 ? sigmoid_output_data[i]  : sample_rate_value_ * ( sigmoid_output_data[i]-1 ) ;
+
+    }
+    
+
+
+
+
+
+    //mutable_cpu_diff 取出他的内存地址，然后算出梯度值保存进去 mutable表示可写
+    //Dtype* bottom_diff = bottom[0]->mutable_cpu_diff();
+    //主要修改这里
+    //caffe_sub(count, sigmoid_output_data, target, bottom_diff);
+    
     // Zero out gradient of ignored targets.
     if (has_ignore_label_) {
       for (int i = 0; i < count; ++i) {
@@ -176,11 +212,12 @@ void SigmoidCrossEntropyLossLayer<Dtype>::Backward_cpu(
   }
 }
 
-#ifdef CPU_ONLY
-STUB_GPU(SigmoidCrossEntropyLossLayer);
-#endif
+/*#ifdef CPU_ONLY
+STUB_GPU(SigmoidCrossImproveEntropyLossLayer);*/
+//#endif
 
-INSTANTIATE_CLASS(SigmoidCrossEntropyLossLayer);
-REGISTER_LAYER_CLASS(SigmoidCrossEntropyLoss);
+INSTANTIATE_CLASS(SigmoidCrossImproveEntropyLossLayer);
+
+REGISTER_LAYER_CLASS(SigmoidCrossImproveEntropyLoss);
 
 }  // namespace caffe

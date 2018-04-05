@@ -10,6 +10,7 @@ namespace caffe {
 
 // Return the current learning rate. The currently implemented learning rate
 // policies are as follows:
+       //学习率衰减的策咯公式
 //    - fixed: always return base_lr.
 //    - step: return base_lr * gamma ^ (floor(iter / step))
 //    - exp: return base_lr * gamma ^ iter
@@ -24,6 +25,7 @@ namespace caffe {
 // where base_lr, max_iter, gamma, step, stepvalue and power are defined
 // in the solver parameter protocol buffer, and iter is the current iteration.
 template <typename Dtype>
+  //获取这些策咯的参数
 Dtype SGDSolver<Dtype>::GetLearningRate() {
   Dtype rate;
   const string& lr_policy = this->param_.lr_policy();
@@ -71,11 +73,24 @@ Dtype SGDSolver<Dtype>::GetLearningRate() {
 
 template <typename Dtype>
 void SGDSolver<Dtype>::PreSolve() {
+
   // Initialize the history
+  /*The mapping from params_ -> learnable_params_: we have
+   * learnable_param_ids_.size() == params_.size(),
+   * and learnable_params_[learnable_param_ids_[i]] == params_[i].get()
+   * if and only if params_[i] is an "owner"; otherwise, params_[i] is a sharer
+   * and learnable_params_[learnable_param_ids_[i]] gives its owner.
+   */
+  //params_ 是一个 vector<shared_ptr<Blob<Dtype> > > 的向量，里面是blob 
+  //params_   The parameters in the network.
+  //params_.push_back(layers_[layer_id]->blobs()[param_id]); 保存的是某个网络的某些参数
+  //注释：learnable_params 和 params_[i] 是一样的，里面保存了的都是Blob,是某些网络层的参数，但是需要搞清到底保存了哪些参数
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
+
   history_.clear();
   update_.clear();
   temp_.clear();
+  //读取参数，
   for (int i = 0; i < net_params.size(); ++i) {
     const vector<int>& shape = net_params[i]->shape();
     history_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
@@ -85,6 +100,7 @@ void SGDSolver<Dtype>::PreSolve() {
 }
 
 template <typename Dtype>
+//
 void SGDSolver<Dtype>::ClipGradients() {
   const Dtype clip_gradients = this->param_.clip_gradients();
   if (clip_gradients < 0) { return; }
@@ -107,7 +123,9 @@ void SGDSolver<Dtype>::ClipGradients() {
 
 template <typename Dtype>
 void SGDSolver<Dtype>::ApplyUpdate() {
+
   Dtype rate = GetLearningRate();
+
   if (this->param_.display() && this->iter_ % this->param_.display() == 0) {
     LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << this->iter_
         << ", lr = " << rate;

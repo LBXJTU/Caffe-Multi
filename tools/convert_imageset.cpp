@@ -72,14 +72,23 @@ int main(int argc, char** argv) {
   const string encode_type = FLAGS_encode_type;
 
   std::ifstream infile(argv[2]);
-  std::vector<std::pair<std::string, int> > lines;
-  std::string line;
+  std::vector<std::pair<std::string, vector<float> > > lines;
+  std::string line, filename;
   size_t pos;
-  int label;
-  while (std::getline(infile, line)) {
-    pos = line.find_last_of(' ');
-    label = atoi(line.substr(pos + 1).c_str());
-    lines.push_back(std::make_pair(line.substr(0, pos), label));
+
+  while (std::getline(infile, line)){
+	  float label;
+	  std::istringstream iss(line);
+	  iss >> filename;
+	  std::vector<float> labels;
+	  //printf("read label: ");
+	  while (iss >> label){
+		  labels.push_back(label);
+		  //printf("%f ", label);
+	  }
+	  //printf("\n");
+	  
+	  lines.push_back(std::make_pair(filename, labels));
   }
   if (FLAGS_shuffle) {
     // randomly shuffle data
